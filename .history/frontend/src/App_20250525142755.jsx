@@ -89,28 +89,12 @@ export default function App() {
       ws.onmessage = (ev) => {
         const data = JSON.parse(ev.data);
         console.log("Received message from WebSocket:", data);
-        if (data.is_final) {
-          // For final results, add a new line
-          setLines(prev => [
-            ...prev.filter(line => line.isFinal),
-            { text: data.transcript, isFinal: true }
-          ]);
-        } else {
-          // For interim results, update the last line
-          setLines(prev => {
-            const lastLine = prev[prev.length - 1];
-            if (lastLine && !lastLine.isFinal) {
-              // Update the existing interim line
-              const updatedLines = [...prev];
-              updatedLines[updatedLines.length - 1] = { ...lastLine, text: data.transcript };
-              return updatedLines;
-            } else {
-              // Add a new interim line if the last one was final or didn't exist
-              return [...prev, { text: "... " + data.transcript, isFinal: false }];
-            }
-          });
-        }
+        setLines(prev => [
+          ...prev,
+          (data.is_final ? "✔ " : "… ") + data.transcript,
+        ]);
       };
+
 
       ws.onerror = (err) => {
         console.error("WebSocket error:", err);

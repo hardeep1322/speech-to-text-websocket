@@ -40,13 +40,13 @@ def get_stt_client() -> speech.SpeechAsyncClient:
         os.path.join(os.path.dirname(__file__), "credentials.json"),  # Local file
         os.path.join(os.path.dirname(__file__), "gen-lang-client-0769471387-17a4f9d05aee.json"),  # Specific file
     ]
-
+    
     # Filter out None values and check each location
     for cred_path in filter(None, possible_locations):
         if os.path.exists(cred_path):
             print(f"Using credentials from: {cred_path}")
             return speech.SpeechAsyncClient.from_service_account_file(cred_path)
-
+    
     # If no credentials found, provide helpful error message
     error_msg = """
     No Google Cloud credentials found! Please do one of the following:
@@ -65,6 +65,9 @@ async def request_stream(ws: WebSocket) -> AsyncGenerator[speech.StreamingRecogn
         sample_rate_hertz=SAMPLE_RATE_HERTZ,
         language_code=LANGUAGE_CODE,
         enable_automatic_punctuation=True,
+        enable_word_time_offsets=True,
+        enable_speaker_diarization=True,
+        diarization_speaker_count=2
     )
     streaming_cfg = speech.StreamingRecognitionConfig(config=cfg, interim_results=True)
     yield speech.StreamingRecognizeRequest(streaming_config=streaming_cfg)

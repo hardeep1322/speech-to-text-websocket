@@ -54,7 +54,7 @@ export default function App() {
 
     // Create a GainNode to mix streams
     const mixer = ctx.createGain();
-    // mixer.connect(ctx.destination); // Connect mixer to context destination (optional, for monitoring) - Removed to prevent echo
+    // mixer.connect(ctx.destination); // Connect mixer to context destination (optional, for monitoring)
 
     // Connect available sources to the mixer
     if (micSource) {
@@ -88,28 +88,10 @@ export default function App() {
 
       ws.onmessage = (ev) => {
         const data = JSON.parse(ev.data);
-        console.log("Received message from WebSocket:", data);
-        if (data.is_final) {
-          // For final results, add a new line
-          setLines(prev => [
-            ...prev.filter(line => line.isFinal),
-            { text: data.transcript, isFinal: true }
-          ]);
-        } else {
-          // For interim results, update the last line
-          setLines(prev => {
-            const lastLine = prev[prev.length - 1];
-            if (lastLine && !lastLine.isFinal) {
-              // Update the existing interim line
-              const updatedLines = [...prev];
-              updatedLines[updatedLines.length - 1] = { ...lastLine, text: data.transcript };
-              return updatedLines;
-            } else {
-              // Add a new interim line if the last one was final or didn't exist
-              return [...prev, { text: "... " + data.transcript, isFinal: false }];
-            }
-          });
-        }
+        setLines(prev => [
+          ...prev,
+          (data.is_final ? "✔ " : "… ") + data.transcript,
+        ]);
       };
 
       ws.onerror = (err) => {
@@ -122,7 +104,6 @@ export default function App() {
 
       // Listen for messages from the AudioWorkletProcessor
       proc.port.onmessage = (event) => {
-        // console.log("Received message from AudioWorkletProcessor.");
         if (ws.readyState === 1) ws.send(event.data);
       };
 
@@ -167,9 +148,7 @@ export default function App() {
 
       <div style={{ marginTop: 24, lineHeight: 1.4 }}>
         {lines.map((l, i) => (
-           <p key={i} style={{ fontWeight: l.isFinal ? 'normal' : 'lighter' }}>
-            {l.text}
-          </p>
+          <p key={i}>{l}</p>
         ))}
       </div>
     </div>

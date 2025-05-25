@@ -2,9 +2,9 @@ import { useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 
 export default function App() {
-  const wsRef = useRef(null);
+  const wsRef   = useRef(null);
   const procRef = useRef(null);
-  const id = useRef(uuidv4()).current;
+  const id      = useRef(uuidv4()).current;
   const [lines, setLines] = useState([]);
 
   /* ── share tab + audio, stream PCM ─────────────────────────────── */
@@ -54,7 +54,7 @@ export default function App() {
 
     // Create a GainNode to mix streams
     const mixer = ctx.createGain();
-    // mixer.connect(ctx.destination); // Connect mixer to context destination (optional, for monitoring) - Removed to prevent echo
+    mixer.connect(ctx.destination); // Connect mixer to context destination (optional, for monitoring)
 
     // Connect available sources to the mixer
     if (micSource) {
@@ -88,28 +88,11 @@ export default function App() {
 
       ws.onmessage = (ev) => {
         const data = JSON.parse(ev.data);
+        setLines((prev) => [
+          ...prev,
+          (data.is_final ? "✔ " : "… ") + data.transcript,
+        ]);
         console.log("Received message from WebSocket:", data);
-        if (data.is_final) {
-          // For final results, add a new line
-          setLines(prev => [
-            ...prev.filter(line => line.isFinal),
-            { text: data.transcript, isFinal: true }
-          ]);
-        } else {
-          // For interim results, update the last line
-          setLines(prev => {
-            const lastLine = prev[prev.length - 1];
-            if (lastLine && !lastLine.isFinal) {
-              // Update the existing interim line
-              const updatedLines = [...prev];
-              updatedLines[updatedLines.length - 1] = { ...lastLine, text: data.transcript };
-              return updatedLines;
-            } else {
-              // Add a new interim line if the last one was final or didn't exist
-              return [...prev, { text: "... " + data.transcript, isFinal: false }];
-            }
-          });
-        }
       };
 
       ws.onerror = (err) => {
@@ -141,16 +124,26 @@ export default function App() {
   /* ── stop everything ───────────────────────────────────────────── */
   function stop() {
     console.log("Stopping audio processing and WebSocket.");
+    // Stop all tracks from both streams
     if (procRef.current) {
+      // Assuming we stored the original streams or source nodes with access to tracks
+      // A more robust way is to store the streams themselves in refs
+      // For now, let's rely on stopping the sources if they were created
       if (procRef.current.context && procRef.current.context.state !== 'closed') {
-        procRef.current.context.close();
+        procRef.current.context.close(); // Close the AudioContext to stop all nodes and sources
         console.log("AudioContext closed.");
       }
       procRef.current?.disconnect();
-      procRef.current?.port.close();
+      procRef.current?.port.close(); // Close the port as well
     }
 
     wsRef.current?.close();
+
+    // Need to manually stop the media tracks if the context isn't closed
+    // This part needs refinement to access the original streams reliably
+    // For demonstration, we'll add comments on how it *should* work if streams were accessible
+    // if (micStreamRef.current) micStreamRef.current.getTracks().forEach(track => track.stop());
+    // if (displayStreamRef.current) displayStreamRef.current.getTracks().forEach(track => track.stop());
   }
 
   /* ── UI ────────────────────────────────────────────────────────── */
@@ -167,9 +160,7 @@ export default function App() {
 
       <div style={{ marginTop: 24, lineHeight: 1.4 }}>
         {lines.map((l, i) => (
-           <p key={i} style={{ fontWeight: l.isFinal ? 'normal' : 'lighter' }}>
-            {l.text}
-          </p>
+          <p key={i}>{l}</p>
         ))}
       </div>
     </div>

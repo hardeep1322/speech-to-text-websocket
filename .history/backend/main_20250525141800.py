@@ -40,13 +40,13 @@ def get_stt_client() -> speech.SpeechAsyncClient:
         os.path.join(os.path.dirname(__file__), "credentials.json"),  # Local file
         os.path.join(os.path.dirname(__file__), "gen-lang-client-0769471387-17a4f9d05aee.json"),  # Specific file
     ]
-
+    
     # Filter out None values and check each location
     for cred_path in filter(None, possible_locations):
         if os.path.exists(cred_path):
             print(f"Using credentials from: {cred_path}")
             return speech.SpeechAsyncClient.from_service_account_file(cred_path)
-
+    
     # If no credentials found, provide helpful error message
     error_msg = """
     No Google Cloud credentials found! Please do one of the following:
@@ -64,10 +64,10 @@ async def request_stream(ws: WebSocket) -> AsyncGenerator[speech.StreamingRecogn
         encoding=AUDIO_ENCODING,
         sample_rate_hertz=SAMPLE_RATE_HERTZ,
         language_code=LANGUAGE_CODE,
-        enable_automatic_punctuation=True,
+        enable_automatic_punctuation=True
     )
     streaming_cfg = speech.StreamingRecognitionConfig(config=cfg, interim_results=True)
-    yield speech.StreamingRecognizeRequest(streaming_config=streaming_cfg)
+    yield speech.StreamingRecognizeRequest(streaming_cfg)
 
     try:
         while True:
@@ -88,6 +88,7 @@ async def forward_responses(responses, ws: WebSocket):
         res = resp.results[0]
         if not res.alternatives:
             continue
+       
         await ws.send_json(
             {
                 "transcript": res.alternatives[0].transcript,
@@ -105,7 +106,10 @@ async def stt_socket(ws: WebSocket, cid: str):
         responses = await stt_client.streaming_recognize(
             requests=request_stream(ws)
         )
+        print("[STT] streaming_recognize called.")
         print("[STT] stream established ✅")
+        
+        print("[STT] Waiting for responses...")
         await forward_responses(responses, ws)
 
     except gexc.InvalidArgument as e:

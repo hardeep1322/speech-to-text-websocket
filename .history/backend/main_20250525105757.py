@@ -40,13 +40,13 @@ def get_stt_client() -> speech.SpeechAsyncClient:
         os.path.join(os.path.dirname(__file__), "credentials.json"),  # Local file
         os.path.join(os.path.dirname(__file__), "gen-lang-client-0769471387-17a4f9d05aee.json"),  # Specific file
     ]
-
+    
     # Filter out None values and check each location
     for cred_path in filter(None, possible_locations):
         if os.path.exists(cred_path):
             print(f"Using credentials from: {cred_path}")
             return speech.SpeechAsyncClient.from_service_account_file(cred_path)
-
+    
     # If no credentials found, provide helpful error message
     error_msg = """
     No Google Cloud credentials found! Please do one of the following:
