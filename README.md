@@ -1,0 +1,48 @@
+# Speech-to-Text WebSocket Server
+
+A FastAPI-based WebSocket server that forwards raw PCM (LINEAR16) audio to Google Cloud Speech-to-Text and streams transcripts back.
+
+## Features
+
+- Uses the async Google Cloud Speech-to-Text client
+- Supports real-time audio streaming via WebSocket
+- Expects little-endian 16-bit PCM @ 48 kHz
+- Provides automatic punctuation
+- CORS enabled for local development
+
+## Prerequisites
+
+- Python 3.7+
+- Google Cloud credentials
+- Required Python packages (see requirements.txt)
+
+## Setup
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Set up Google Cloud credentials:
+   - Set GOOGLE_APPLICATION_CREDENTIALS environment variable, or
+   - Place your credentials.json file in the backend directory
+
+## Running the Server
+
+```bash
+cd backend
+python main.py
+```
+
+The server will start on `http://localhost:8000`.
+
+## WebSocket Endpoint
+
+Connect to the WebSocket endpoint at:
+```
+ws://localhost:8000/ws/{client_id}
+```
+
+## License
+
+MIT
