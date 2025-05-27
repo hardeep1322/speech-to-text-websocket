@@ -6,7 +6,11 @@ export default function App() {
   const procRef = useRef(null);
   const id = useRef(uuidv4()).current;
   const [lines, setLines] = useState([]);
-  const [summary, setSummary] = useState("");
+  const [showSetup, setShowSetup] = useState(true);
+  const [speakers, setSpeakers] = useState({
+    panelist: "",
+    candidate: ""
+  });
 
   /* ── share tab + audio, stream PCM ─────────────────────────────── */
   async function start() {
@@ -83,38 +87,50 @@ export default function App() {
       wsRef.current = ws;
       console.log("WebSocket created.", ws);
 
+      // Send speaker names when connection opens
       ws.onopen = () => {
         console.log("WebSocket connection opened.");
+        ws.send(JSON.stringify({
+          type: "setup",
+          speakers: speakers
+        }));
       };
 
       ws.onmessage = (ev) => {
         const data = JSON.parse(ev.data);
         console.log("Received message from WebSocket:", data);
-        
-        if (data.type === "summary") {
-          setSummary(data.content);
-        } else if (data.type === "transcript") {
-          if (data.is_final) {
-            // For final results, add a new line
-            setLines(prev => [
-              ...prev.filter(line => line.isFinal),
-              { text: data.transcript, isFinal: true }
-            ]);
-          } else {
-            // For interim results, update the last line
-            setLines(prev => {
-              const lastLine = prev[prev.length - 1];
-              if (lastLine && !lastLine.isFinal) {
-                // Update the existing interim line
-                const updatedLines = [...prev];
-                updatedLines[updatedLines.length - 1] = { ...lastLine, text: data.transcript };
-                return updatedLines;
-              } else {
-                // Add a new interim line if the last one was final or didn't exist
-                return [...prev, { text: "... " + data.transcript, isFinal: false }];
-              }
-            });
-          }
+        if (data.is_final) {
+          // For final results, add a new line with speaker info
+          setLines(prev => [
+            ...prev.filter(line => line.isFinal),
+            { 
+              text: data.transcript, 
+              isFinal: true,
+              speaker: data.speaker // Add speaker info from backend
+            }
+          ]);
+        } else {
+          // For interim results, update the last line
+          setLines(prev => {
+            const lastLine = prev[prev.length - 1];
+            if (lastLine && !lastLine.isFinal) {
+              // Update the existing interim line
+              const updatedLines = [...prev];
+              updatedLines[updatedLines.length - 1] = { 
+                ...lastLine, 
+                text: data.transcript,
+                speaker: data.speaker // Add speaker info from backend
+              };
+              return updatedLines;
+            } else {
+              // Add a new interim line if the last one was final or didn't exist
+              return [...prev, { 
+                text: "... " + data.transcript, 
+                isFinal: false,
+                speaker: data.speaker // Add speaker info from backend
+              }];
+            }
+          });
         }
       };
 
@@ -128,8 +144,15 @@ export default function App() {
 
       // Listen for messages from the AudioWorkletProcessor
       proc.port.onmessage = (event) => {
-        // console.log("Received message from AudioWorkletProcessor.");
-        if (ws.readyState === 1) ws.send(event.data);
+        if (ws.readyState === 1) {
+          // Send audio data with source info
+          const message = {
+            type: "audio",
+            source: event.data.source, // 'mic' or 'display'
+            data: event.data.audio
+          };
+          ws.send(JSON.stringify(message));
+        }
       };
 
       proc.port.onmessageerror = (error) => {
@@ -144,51 +167,74 @@ export default function App() {
     }
   }
 
-  /* ── stop everything ───────────────────────────────────────────── */
   function stop() {
-    console.log("Stopping audio processing and WebSocket.");
     if (procRef.current) {
-      if (procRef.current.context && procRef.current.context.state !== 'closed') {
-        procRef.current.context.close();
-        console.log("AudioContext closed.");
-      }
-      procRef.current?.disconnect();
-      procRef.current?.port.close();
+      procRef.current.disconnect();
     }
-
-    wsRef.current?.close();
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
   }
 
-  /* ── UI ────────────────────────────────────────────────────────── */
-  return (
-    <div style={{ padding: 24, fontFamily: "sans-serif" }}>
-      <h1>Interview Copilot – Live Transcript</h1>
+  if (showSetup) {
+    return (
+      <div className="p-4 space-y-4">
+        <h1 className="text-2xl font-bold">Interview Copilot</h1>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Panelist Name</label>
+            <input
+              type="text"
+              value={speakers.panelist}
+              onChange={(e) => setSpeakers(prev => ({ ...prev, panelist: e.target.value }))}
+              className="w-full p-2 border rounded"
+              placeholder="Enter panelist name"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Candidate Name</label>
+            <input
+              type="text"
+              value={speakers.candidate}
+              onChange={(e) => setSpeakers(prev => ({ ...prev, candidate: e.target.value }))}
+              className="w-full p-2 border rounded"
+              placeholder="Enter candidate name"
+            />
+          </div>
+          <button
+            onClick={() => {
+              if (!speakers.panelist || !speakers.candidate) {
+                alert("Please enter both panelist and candidate names");
+                return;
+              }
+              setShowSetup(false);
+              start();
+            }}
+            className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Start Interview
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-      <button onClick={start} style={{ padding: "8px 16px", marginRight: 8 }}>
-        Share & Transcribe Tab
-      </button>
-      <button onClick={stop} style={{ padding: "8px 16px" }}>
+  return (
+    <div className="p-4 space-y-4">
+      <h1 className="text-2xl font-bold">Interview Copilot</h1>
+
+      <button onClick={stop} className="px-4 py-2 bg-gray-300 rounded ml-4">
         Stop
       </button>
 
-      {summary && (
-        <div style={{ 
-          marginTop: 24, 
-          padding: 16, 
-          backgroundColor: "#f0f0f0", 
-          borderRadius: 8,
-          border: "1px solid #ddd"
-        }}>
-          <h2 style={{ marginTop: 0 }}>Live Summary (Updates every 15 seconds)</h2>
-          <p style={{ margin: 0 }}>{summary}</p>
-        </div>
-      )}
-
-      <div style={{ marginTop: 24, lineHeight: 1.4 }}>
-        {lines.map((l, i) => (
-           <p key={i} style={{ fontWeight: l.isFinal ? 'normal' : 'lighter' }}>
-            {l.text}
-          </p>
+      <div className="mt-6 space-y-2">
+        {lines.map((line, i) => (
+          <div key={i} className={`p-2 rounded ${line.isFinal ? 'bg-gray-100' : 'bg-gray-50'}`}>
+            {line.speaker && (
+              <span className="font-bold text-blue-600">{line.speaker}: </span>
+            )}
+            {line.text}
+          </div>
         ))}
       </div>
     </div>
