@@ -21,9 +21,16 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
-venv/
-ENV/
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
 
 # IDE
 .idea/
@@ -31,9 +38,13 @@ ENV/
 *.swp
 *.swo
 
-# Google Cloud credentials
-credentials.json
-gen-lang-client-*.json
+# Project specific
+.history/
+backend/credentials.json
+backend/gen-lang-client-*.json
+*.log
 
-# Environment variables
-.env 
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/ 

@@ -10,15 +10,23 @@ to Google Cloud Speech-to-Text and streams transcripts back.
 import os, asyncio, traceback
 from typing import AsyncGenerator
 import time
-from collections import deque
-
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from collections import deque, defaultdict
+import json
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Security
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 from starlette.websockets import WebSocketState
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 from google.cloud import speech_v1 as speech
 from google.api_core import exceptions as gexc
 from gemini_client import generate_summary
+
+# Security configuration
+API_KEY_NAME = "X-API-Key"
+API_KEY = os.getenv("API_KEY", "your-secure-api-key-here")  # Change this in production
+api_key_header = APIKeyHeader(name=API_KEY_NAME)
 
 # ─── GOOGLE STT CONFIG ────────────────────────────────────────────────
 AUDIO_ENCODING     = speech.RecognitionConfig.AudioEncoding.LINEAR16
@@ -28,9 +36,28 @@ LANGUAGE_CODE      = "en-US"
 
 # ─── FastAPI boilerplate ──────────────────────────────────────────────
 app = FastAPI()
+
+# Security middleware
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+# CORS configuration - Update with your production domains
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",  # Development
+    "https://your-frontend-domain.vercel.app",  # Production frontend
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -39,6 +66,7 @@ app.add_middleware(
 # Store transcripts for each connection
 transcript_store = {}
 last_summary_time = {}
+conversation_store = defaultdict(list)  # Store full conversation history
 
 def get_stt_client() -> speech.SpeechAsyncClient:
     # Check for credentials in multiple locations
@@ -92,6 +120,7 @@ async def forward_responses(responses, ws: WebSocket, cid: str):
     if cid not in transcript_store:
         transcript_store[cid] = deque(maxlen=100)  # Store last 100 transcripts
         last_summary_time[cid] = time.time()
+        conversation_store[cid] = []  # Initialize conversation history
 
     async for resp in responses:
         if not resp.results:
@@ -104,7 +133,14 @@ async def forward_responses(responses, ws: WebSocket, cid: str):
         is_final = res.is_final
 
         if is_final:
+            # Store the transcript with timestamp
+            transcript_entry = {
+                "timestamp": time.time(),
+                "text": transcript,
+                "is_final": is_final
+            }
             transcript_store[cid].append(transcript)
+            conversation_store[cid].append(transcript_entry)
             
             # Check if 15 seconds have passed since last summary
             current_time = time.time()
@@ -112,23 +148,32 @@ async def forward_responses(responses, ws: WebSocket, cid: str):
                 # Generate summary from all transcripts
                 full_text = " ".join(transcript_store[cid])
                 summary = generate_summary(full_text)
+                
+                # Send both the transcript and the structured summary
                 await ws.send_json({
                     "type": "summary",
-                    "content": summary
+                    "content": summary,
+                    "timestamp": current_time
                 })
                 last_summary_time[cid] = current_time
 
-        await ws.send_json(
-            {
-                "type": "transcript",
-                "transcript": transcript,
-                "is_final": is_final,
-            }
-        )
+        # Send the transcript
+        await ws.send_json({
+            "type": "transcript",
+            "transcript": transcript,
+            "is_final": is_final,
+            "timestamp": time.time()
+        })
 
 # ─── WebSocket endpoint ───────────────────────────────────────────────
 @app.websocket("/ws/{cid}")
 async def stt_socket(ws: WebSocket, cid: str):
+    # Verify API key from query parameters
+    api_key = ws.query_params.get("api_key")
+    if not api_key or api_key != API_KEY:
+        await ws.close(code=1008)  # Policy Violation
+        return
+
     await ws.accept()
     print(f"[WS {cid}] connected")
 

@@ -1,53 +1,85 @@
-# Speech-to-Text WebSocket Server
+# AI Interview Assistant
 
-A FastAPI-based WebSocket server that forwards raw PCM (LINEAR16) audio to Google Cloud Speech-to-Text and streams transcripts back.
+A real-time interview assistant that uses speech-to-text and AI to provide interview feedback and summaries.
 
-## Features
+## Security Considerations
 
-- Uses the async Google Cloud Speech-to-Text client
-- Supports real-time audio streaming via WebSocket
-- Expects little-endian 16-bit PCM @ 48 kHz
-- Provides automatic punctuation
-- CORS enabled for local development
+1. **API Key Authentication**
+   - All WebSocket connections require a valid API key
+   - API key should be set as an environment variable `API_KEY`
+   - Never commit API keys or credentials to the repository
 
-## Prerequisites
+2. **Google Cloud Credentials**
+   - Store Google Cloud credentials securely
+   - Use environment variables or secure secret management
+   - Never commit credentials to the repository
 
-- Python 3.7+
-- Google Cloud credentials
-- Required Python packages (see requirements.txt)
+3. **CORS Configuration**
+   - Only allowed origins can access the API
+   - Production domains must be explicitly added to the allowed origins list
 
-## Setup
+## Setup Instructions
 
-1. Clone the repository
-2. Install dependencies:
+### Backend Setup
+
+1. Install Python dependencies:
    ```bash
+   cd backend
    pip install -r requirements.txt
    ```
-3. Set up Google Cloud credentials:
-   - Set GOOGLE_APPLICATION_CREDENTIALS environment variable, or
-   - Place your credentials.json file in the backend directory
 
-## Running the Server
+2. Set up environment variables:
+   ```bash
+   export API_KEY="your-secure-api-key"
+   export GOOGLE_APPLICATION_CREDENTIALS="path/to/your/credentials.json"
+   ```
 
-```bash
-cd backend
-python main.py
-```
+3. Run the backend server:
+   ```bash
+   uvicorn main:app --host 0.0.0.0 --port 8000
+   ```
 
-## Running  frontend
+### Frontend Setup
 
- cd frontend
- npm run dev
+1. Install Node.js dependencies:
+   ```bash
+   cd frontend
+   npm install
+   ```
 
-The server will start on `http://localhost:8000`.
+2. Set up environment variables:
+   Create a `.env` file with:
+   ```
+   VITE_API_URL=your_backend_url
+   VITE_API_KEY=your_api_key
+   ```
 
-## WebSocket Endpoint
+3. Run the development server:
+   ```bash
+   npm run dev
+   ```
 
-Connect to the WebSocket endpoint at:
-```
-ws://localhost:8000/ws/{client_id}
-```
+## Deployment
 
-## License
+### Backend (Render)
+1. Create a new Web Service on Render
+2. Connect your GitHub repository
+3. Set environment variables:
+   - `API_KEY`
+   - `GOOGLE_APPLICATION_CREDENTIALS` (as a JSON string)
+4. Deploy
 
-MIT
+### Frontend (Vercel)
+1. Create a new project on Vercel
+2. Connect your GitHub repository
+3. Set environment variables:
+   - `VITE_API_URL`
+   - `VITE_API_KEY`
+4. Deploy
+
+## Development
+
+- Backend runs on port 8000
+- Frontend development server runs on port 5173
+- WebSocket connections require API key authentication
+- All API endpoints are protected with security headers
