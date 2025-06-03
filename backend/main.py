@@ -52,7 +52,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 # CORS configuration - Update with your production domains
 ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Development
-    "https://your-frontend-domain.vercel.app",  # Production frontend
+    "https://interview-assistant-frontend.vercel.app",  # Production frontend - Update this with your actual Vercel domain
 ]
 
 app.add_middleware(
